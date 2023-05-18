@@ -1,0 +1,91 @@
+//完整的后端代码
+
+const express = require('express');
+const multer = require('multer');
+const mysql = require('mysql');
+const cors = require('cors');
+const app = express();
+const upload = multer();
+const fs = require('fs');
+
+const connection = mysql.createConnection({
+  host: 'localhost',
+  user: 'root',
+  password: '123321',
+  database: 'nodeplus'
+});
+
+app.use(cors()); 
+
+app.post('/upload', upload.single('file'), (req, res) => {
+  const { originalname, buffer } = req.file;
+  const path = `uploads/${originalname}`;
+
+  // 将文件保存到磁盘
+  fs.writeFile(path, buffer, (err) => {
+    if (err) {
+      console.error('保存文件失败：', err);
+      res.status(500).send('保存文件失败');
+      return;
+    }
+
+    // 将文件信息保存到数据库
+    const sql = 'INSERT INTO files (pname, path) VALUES (?, ?)';
+    connection.query(sql, [originalname, path], (error, results, fields) => {
+      if (error) {
+        console.error('保存文件信息失败：', error);
+        res.status(500).send('保存文件信息失败');
+        return;
+      }
+      console.log('文件信息保存成功');
+      res.status(200).send('文件上传成功');
+    });
+  });
+});
+
+app.get('/download/:id', (req, res) => {
+  const fileId = req.params.id;
+  const sql = 'SELECT pname, path FROM files WHERE id = ?';
+  connection.query(sql, [fileId], (error, results, fields) => {
+    if (error) {
+      console.error('查询文件信息失败：', error);
+      res.status(500).send('查询文件信息失败');
+      return;
+    }
+
+    if (results.length === 0) {
+      console.error('文件不存在');
+      res.status(404).send('文件不存在');
+      return;
+    }
+    res.send({
+      status:0,
+      message :'获取成功',
+      data :results[0]
+  })
+
+     /*const { pname, path } = results[0];
+    const filePath = path;
+
+    // 将文件返回给前端
+   res.download(filePath, pname, (err) => {
+      if (err) {
+        console.error('下载文件失败：', err);
+        res.status(500).send('下载文件失败');
+        return;
+      }
+      console.log('文件下载成功');
+    });*/
+  });
+});
+
+
+async function writeFile(path, buffer) {
+  const fs = require('fs').promises;
+  await fs.mkdir('uploads', { recursive: true });
+  await fs.writeFile(path, buffer);
+}
+
+app.listen(3000, () => {
+  console.log('服务器已启动');
+});

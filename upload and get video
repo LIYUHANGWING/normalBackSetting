@@ -1,0 +1,99 @@
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const db = require('./db/index');
+
+const cors = require('cors')
+
+const app = express();
+const upload = multer();
+
+app.use(cors());
+
+app.use('/uploads',express.static('uploads'));
+
+app.use(express.urlencoded({ extended: false }));
+
+app.use((req, res, next) => {
+  res.cc = function(err, status = 1) {
+    res.send({
+      status,
+      message: err instanceof Error ? err.message : err,
+    });
+  };
+  next();
+});
+
+
+
+
+app.post('/upvideo', upload.single('file'), (req, res) => {
+    console.log(req.body);
+    const { originalname, buffer } = req.file;
+    const filename = req.body.filename; // 自定义的文件名
+    const path = `uploads/${filename}`;
+  
+    // 将文件保存到磁盘
+    fs.writeFile(path, buffer, (err) => {
+      if (err) {
+        console.error('保存文件失败：', err);
+        res.status(500).send('保存文件失败');
+        return;
+      }
+  
+      // 将文件信息保存到数据库
+      const sql = 'INSERT INTO files (pname, path) VALUES (?, ?)';
+      db.query(sql, [filename, path], (error, results, fields) => {
+        if (error) {
+          console.error('保存文件信息失败：', error);
+          res.status(500).send('保存文件信息失败');
+          return;
+        }
+        console.log('文件信息保存成功');
+        res.status(200).send('文件上传成功');
+      });
+    });
+  });
+  
+
+app.get('/download/:id', (req, res) => {
+  const fileId = req.params.id;
+  const sql = 'SELECT pname, path FROM files WHERE id = ?';
+  db.query(sql, [fileId], (error, results, fields) => {
+    if (error) {
+      console.error('查询文件信息失败：', error);
+      res.status(500).send('查询文件信息失败');
+      return;
+    }
+
+    if (results.length === 0) {
+      console.error('文件不存在');
+      res.status(404).send('文件不存在');
+      return;
+    }
+    res.send({
+      status: 0,
+      message: '获取成功',
+      data: results[0],
+    });
+  });
+});
+
+async function writeFile(path, buffer) {
+  const fs = require('fs').promises;
+  await fs.mkdir('uploads', { recursive: true });
+  await fs.writeFile(path, buffer);
+}
+
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    res.cc('文件上传失败');
+  } else {
+    res.cc(err);
+  }
+});
+
+app.listen(3017, () => {
+  console.log('API server running at http://127.0.0.1:3017');
+});

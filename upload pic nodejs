@@ -1,0 +1,54 @@
+//想数据库上传/下载图片的两个接口
+app.post('/upload-avatar', upload.single('avatar'), (req, res) => {
+  const username = req.body.username; // 从请求体中获取用户名
+
+  //
+    const { originalname, buffer } = req.file;
+    const filename = req.body.filename; // 自定义的文件名
+    const avatarPath = `avatar/${filename}`+'.jpg';
+
+   // const avatarPath = path.join(__dirname, 'avatar', filename);
+
+   fs.writeFile(avatarPath, buffer, (err) => {
+    if (err) {
+      console.error('保存文件失败：', err);
+      res.status(500).send('保存文件失败');
+      return;
+    }
+
+  // 在数据库中更新用户的头像路径和文件名
+  const sql = 'UPDATE users SET avatar = ?, avatar_filename = ? WHERE username = ?';
+  db.query(sql, [avatarPath,originalname, username], (error, results) => {
+    if (error) {
+      console.error('更新用户头像失败:', error);
+      res.status(500).json({ error: '更新用户头像失败' });
+      return;
+    }
+    console.log('更新用户头像成功');
+    res.status(200).json({ message: '更新用户头像成功' });
+  });
+});
+});
+
+app.get('/getavatar/:username', (req, res) => {
+  const fileId = req.params.username;
+  const sql = 'SELECT avatar FROM nodeplus.users WHERE username = ?';
+  db.query(sql, [fileId], (error, results, fields) => {
+    if (error) {
+      console.error('查询文件信息失败：', error);
+      res.status(500).send('查询文件信息失败');
+      return;
+    }
+
+    if (results.length === 0) {
+      console.error('文件不存在');
+      res.status(404).send('文件不存在');
+      return;
+    }
+    res.send({
+      status: 0,
+      message: '获取成功',
+      data: results[0],
+    });
+  });
+});
